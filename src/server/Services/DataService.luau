@@ -4,6 +4,7 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Items = require(ReplicatedStorage.Shared.Items)
@@ -11,7 +12,28 @@ local SyncService = require(script.Parent.SyncService)
 
 local DataService = {}
 
-local store = DataStoreService:GetDataStore(Config.DATASTORE_NAME)
+-- Store em memória com a mesma interface do DataStore (só UpdateAsync).
+-- Usado no Studio quando o place não está publicado ou sem acesso à API: nada é salvo de verdade.
+local function createMemoryStore()
+	local memory = {}
+	return {
+		UpdateAsync = function(_, key: string, transform: (any) -> any)
+			local result = transform(memory[key])
+			if result ~= nil then
+				memory[key] = result
+			end
+			return result
+		end,
+	}
+end
+
+local store: any
+do
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(Config.DATASTORE_NAME)
+	end)
+	store = if ok then result else nil
+end
 local profiles: { [Player]: any } = {}
 local pendingWrites = 0
 
@@ -174,6 +196,23 @@ function DataService.RemoveFromStash(player: Player, id: string, count: number):
 end
 
 function DataService.Init()
+	-- No Studio, testa se o DataStore funciona; se não, cai para a memória em vez de travar o jogo.
+	if store and RunService:IsStudio() then
+		local ok = pcall(function()
+			store:GetAsync("__studio_probe")
+		end)
+		if not ok then
+			store = nil
+		end
+	end
+	if not store then
+		warn(
+			"[DataService] DataStore indisponível (place não publicado ou sem acesso à API)."
+				.. " Usando dados temporários: o progresso NÃO será salvo."
+		)
+		store = createMemoryStore()
+	end
+
 	Players.PlayerAdded:Connect(function(player)
 		DataService.Load(player)
 	end)

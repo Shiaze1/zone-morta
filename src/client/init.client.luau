@@ -108,6 +108,7 @@ end)
 deployButton.Size = UDim2.new(1, 0, 0, 40)
 deployButton.Position = UDim2.new(0, 0, 1, -40)
 deployButton.TextSize = 18
+deployButton.Visible = false -- aparece quando os dados do jogador chegarem
 deployButton.Parent = panel
 
 -- Notificações (baixo central)
